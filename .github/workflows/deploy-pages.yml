@@ -14,7 +14,7 @@ jobs:
       id-token: write      
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Upload Pages folder
         uses: actions/upload-pages-artifact@v3

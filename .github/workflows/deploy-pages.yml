@@ -1,25 +1,37 @@
-# File: .github/workflows/deploy-pages.yml
+# .github/workflows/deploy-pages.yml
 name: Deploy to GitHub Pages
 
+# Re-deploy every time something is pushed to main
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
+
+# The new Pages actions require these top-level permissions
+permissions:
+  contents: read        # to checkout the code
+  pages: write          # to push to gh-pages
+  id-token: write       # to authenticate the deployment
 
 jobs:
-  build_and_deploy:
+  deploy:
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
+
     steps:
-      - name: Check out the repo
-        uses: actions/checkout@v3
+      # 1) Check out your repo
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Upload Pages folder
-        uses: actions/upload-pages-artifact@v1
+      # 2) Configure Pages (sets up environment variables, etc.)
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # 3) Upload the folder that contains index.html
+      #    Change path: if your site lives somewhere else
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v2
         with:
-          path: ./docs
+          path: ./docs       # <── put ./  if index.html is at repo root
 
+      # 4) Deploy!
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v2

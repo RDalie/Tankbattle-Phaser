@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 
 /* ---------- CONSTANTS ---------- */
-const W = window.innerWidth;      // full‑screen width
-const H = window.innerHeight;     // full‑screen height
+const W = window.innerWidth;      // full-screen width
+const H = window.innerHeight;     // full-screen height
 
 /* movement */
 const ROT_SPEED  = 180;  // °/s
@@ -16,9 +16,13 @@ const ENEMY_FREQ     = 1600;   // ms
 const HOURGLASS_FREQ = 15000;  // ms
 const HOURGLASS_TIME = 10000;  // ms
 
-/* sprites face UP; Phaser 0 rad faces RIGHT */
-const FWD = -Math.PI / 2;
-const forward = rot => rot + FWD;   // converts sprite rotation -> world heading
+/* helpers */
+const FWD = -Math.PI / 2;                     // sprite art faces UP
+const forward = rot => rot + FWD;             // convert sprite rot → forward heading
+const facePlayer = (sprite, target) => {
+  const ang = Phaser.Math.Angle.Between(sprite.x, sprite.y, target.x, target.y);
+  sprite.setRotation(ang - Math.PI / 2);      // now sprite "nose" aims at target
+};
 
 /* -------------------------------- */
 export default class GameScene extends Phaser.Scene {
@@ -75,7 +79,7 @@ export default class GameScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.space   = this.input.keyboard.addKey('SPACE');
 
-    /* TIMERS (store references so we can cancel them on game‑over) */
+    /* TIMERS (store references so we can cancel them on game-over) */
     this.enemyEvent = this.time.addEvent({
       delay: ENEMY_FREQ,
       loop: true,
@@ -95,14 +99,14 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player,  this.enemies,     this.gameOver,     null, this);
     this.physics.add.overlap(this.player,  this.hourglasses, this.getHourglass, null, this);
 
-    /* GAME‑OVER overlay */
+    /* GAME-OVER overlay */
     this.panelGO = this.add.image(W / 2, H / 2, 'gameover').setVisible(false);
     this.txtGO   = this.add.text(W / 2, H / 2 + 60, '',
       { fontFamily: 'monospace', fontSize: 28, color: '#ff0000' })
       .setOrigin(0.5)
       .setVisible(false);
 
-    /* RESTART on click after game‑over */
+    /* RESTART on click after game-over */
     this.input.once('pointerdown', () => {
       if (this.isOver) this.scene.restart();
     });
@@ -137,10 +141,7 @@ export default class GameScene extends Phaser.Scene {
     this.enemies.children.each(e => {
       const speed = this.hourglassOn ? ENEMY_SLOW : ENEMY_SPEED;
       this.physics.moveToObject(e, this.player, speed);
-
-      // rotate sprite so that its "up" points toward the player
-      const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
-      e.setRotation(ang + Math.PI / 2); // +90° because sprite art faces up
+      facePlayer(e, this.player);
     });
 
     /* hourglass timeout */
@@ -178,8 +179,7 @@ export default class GameScene extends Phaser.Scene {
 
     /* give it an initial velocity and correct rotation */
     this.physics.moveToObject(e, this.player, this.hourglassOn ? ENEMY_SLOW : ENEMY_SPEED);
-    const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
-    e.setRotation(ang + Math.PI / 2);
+    facePlayer(e, this.player);
   }
 
   spawnHourglass () {
@@ -203,20 +203,25 @@ export default class GameScene extends Phaser.Scene {
     this.tHourglassEnd = this.time.now + HOURGLASS_TIME;
   }
 
-  /* ---------- GAME‑OVER ---------- */
+  /* ---------- GAME-OVER ---------- */
   gameOver () {
     if (this.isOver) return;         // defend against multiple calls
     this.isOver = true;
 
-    /* freeze physics world so nothing keeps drifting */
+    /* destroy all sprites so the canvas is empty */
+    this.enemies.clear(true, true);
+    this.bullets.clear(true, true);
+    this.hourglasses.clear(true, true);
+    this.player.setVisible(false);
+
+    /* freeze physics world */
     this.physics.pause();
 
-    /* cancel timed events so no new spawns appear */
+    /* cancel timed events */
     this.enemyEvent.remove();
     this.hgEvent.remove();
 
     /* UI feedback */
-    this.player.setTint(0xff0000).setAngularVelocity(0);
     this.panelGO.setVisible(true);
     this.txtGO.setText(`Score: ${this.score} — click to restart`).setVisible(true);
   }

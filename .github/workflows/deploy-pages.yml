@@ -1,7 +1,6 @@
 # .github/workflows/deploy-pages.yml
 name: Deploy to GitHub Pages
 
-# Re-deploy every time something is pushed to main
 on:
   push:
     branches: [ "main" ]

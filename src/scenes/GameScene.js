@@ -1,30 +1,31 @@
 import Phaser from 'phaser';
 
 /* ---------- CONSTANTS ---------- */
-const W = window.innerWidth;       // now matches full-screen size
-const H = window.innerHeight;
+const W = window.innerWidth;      // full‑screen width
+const H = window.innerHeight;     // full‑screen height
 
 /* movement */
-const ROT_SPEED  = 180;   // °/s
-const MOVE_SPEED = 300;   // forward velocity
+const ROT_SPEED  = 180;  // °/s
+const MOVE_SPEED = 300;  // forward velocity
 
 /* gameplay */
 const BULLET_SPEED   = 600;
 const ENEMY_SPEED    = 200;
 const ENEMY_SLOW     =  80;
-const ENEMY_FREQ     = 1600;    // ms
-const HOURGLASS_FREQ = 15000;   // ms
-const HOURGLASS_TIME = 10000;   // ms
+const ENEMY_FREQ     = 1600;   // ms
+const HOURGLASS_FREQ = 15000;  // ms
+const HOURGLASS_TIME = 10000;  // ms
 
 /* sprites face UP; Phaser 0 rad faces RIGHT */
 const FWD = -Math.PI / 2;
-const forward = rot => rot + FWD;
+const forward = rot => rot + FWD;   // converts sprite rotation -> world heading
 
 /* -------------------------------- */
 export default class GameScene extends Phaser.Scene {
-  constructor() { super('GameScene'); }
+  constructor () { super('GameScene'); }
 
-  preload() {
+  /* ---------- LOAD ASSETS ---------- */
+  preload () {
     this.load.image('player',    'images/soldier1.png');
     this.load.image('enemy',     'images/aliens3.png');
     this.load.image('bullet',    'images/ammo6.png');
@@ -33,12 +34,18 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('gameover',  'images/game_over.png');
   }
 
-  create() {
+  /* ---------- CREATE WORLD ---------- */
+  create () {
     /* FLAGS */
-    this.isOver = this.hourglassOn = false;
+    this.isOver      = false;
+    this.hourglassOn = false;
+
+    /* PHYSICS WORLD */
+    this.physics.world.setBounds(0, 0, W, H);
 
     /* PLAYER */
-    this.player = this.physics.add.sprite(W / 2, H / 2, 'player')
+    this.player = this.physics.add
+      .sprite(W / 2, H / 2, 'player')
       .setCollideWorldBounds(true);
 
     /* GROUPS */
@@ -46,39 +53,64 @@ export default class GameScene extends Phaser.Scene {
     this.enemies     = this.physics.add.group();
     this.hourglasses = this.physics.add.group();
 
-    /* UI */
-    this.score = 0;
-    this.start = this.time.now;
+    /* UI – score */
+    this.score  = 0;
+    this.start  = this.time.now;
     this.txtScore = this.add.text(10, 10, 'Enemies killed: 0',
-                    { fontFamily: 'monospace', fontSize: 20, color: '#000' });
-    this.add.image(W - 60, H - 60, 'clock').setScale(0.2);
-    this.txtTimer = this.add.text(W - 80, H - 40, '0',
-                    { fontFamily: 'monospace', fontSize: 20, color: '#000' });
+      { fontFamily: 'monospace', fontSize: 20, color: '#000' });
+
+    /* UI – timer (clock icon + seconds) */
+    this.clockIcon = this.add.image(W - 100, 40, 'clock')
+      .setScale(0.25)
+      .setOrigin(0.5);
+
+    this.txtTimer  = this.add.text(
+      this.clockIcon.x + this.clockIcon.displayWidth / 2 + 8,
+      this.clockIcon.y,
+      '0',
+      { fontFamily: 'monospace', fontSize: 24, color: '#000' }
+    ).setOrigin(0, 0.5);
 
     /* INPUT */
     this.cursors = this.input.keyboard.createCursorKeys();
     this.space   = this.input.keyboard.addKey('SPACE');
 
-    /* TIMERS */
-    this.time.addEvent({ delay: ENEMY_FREQ,     loop: true, callback: () => this.spawnEnemy() });
-    this.time.addEvent({ delay: HOURGLASS_FREQ, loop: true, callback: () => this.spawnHourglass() });
+    /* TIMERS (store references so we can cancel them on game‑over) */
+    this.enemyEvent = this.time.addEvent({
+      delay: ENEMY_FREQ,
+      loop: true,
+      callback: this.spawnEnemy,
+      callbackScope: this
+    });
+
+    this.hgEvent = this.time.addEvent({
+      delay: HOURGLASS_FREQ,
+      loop: true,
+      callback: this.spawnHourglass,
+      callbackScope: this
+    });
 
     /* COLLISIONS */
-    this.physics.add.overlap(this.bullets, this.enemies,      this.hitEnemy,     null, this);
-    this.physics.add.overlap(this.player,  this.enemies,      this.gameOver,     null, this);
-    this.physics.add.overlap(this.player,  this.hourglasses,  this.getHourglass, null, this);
+    this.physics.add.overlap(this.bullets, this.enemies,     this.hitEnemy,     null, this);
+    this.physics.add.overlap(this.player,  this.enemies,     this.gameOver,     null, this);
+    this.physics.add.overlap(this.player,  this.hourglasses, this.getHourglass, null, this);
 
-    /* GAME-OVER overlay */
+    /* GAME‑OVER overlay */
     this.panelGO = this.add.image(W / 2, H / 2, 'gameover').setVisible(false);
     this.txtGO   = this.add.text(W / 2, H / 2 + 60, '',
-                  { fontFamily: 'monospace', fontSize: 28, color: '#ff0000' })
-                  .setOrigin(0.5).setVisible(false);
-    this.input.once('pointerdown', () => { if (this.isOver) this.scene.restart(); });
+      { fontFamily: 'monospace', fontSize: 28, color: '#ff0000' })
+      .setOrigin(0.5)
+      .setVisible(false);
+
+    /* RESTART on click after game‑over */
+    this.input.once('pointerdown', () => {
+      if (this.isOver) this.scene.restart();
+    });
   }
 
   /* ---------- MAIN LOOP ---------- */
-  update() {
-    if (this.isOver) return;
+  update () {
+    if (this.isOver) return;            // skip logic when game finished
 
     /* rotation */
     if (this.cursors.left.isDown)       this.player.setAngularVelocity(-ROT_SPEED);
@@ -96,71 +128,95 @@ export default class GameScene extends Phaser.Scene {
     /* shoot */
     if (Phaser.Input.Keyboard.JustDown(this.space)) this.fire();
 
-    /* clean bullets */
+    /* clean bullets out of bounds */
     this.bullets.children.each(b => {
       if (b.active && !this.physics.world.bounds.contains(b.x, b.y)) b.destroy();
     });
 
-    /* enemies chase */
+    /* enemies chase + face player */
     this.enemies.children.each(e => {
-      this.physics.moveToObject(e, this.player,
-        this.hourglassOn ? ENEMY_SLOW : ENEMY_SPEED);
+      const speed = this.hourglassOn ? ENEMY_SLOW : ENEMY_SPEED;
+      this.physics.moveToObject(e, this.player, speed);
+
+      // rotate sprite so that its "up" points toward the player
+      const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
+      e.setRotation(ang + Math.PI / 2); // +90° because sprite art faces up
     });
 
     /* hourglass timeout */
     if (this.hourglassOn && this.time.now > this.tHourglassEnd) this.hourglassOn = false;
 
-    /* UI */
+    /* UI – timer update */
     this.txtTimer.setText(Math.floor((this.time.now - this.start) / 1000));
+
+    /* UI – hourglass countdown */
     if (this.hourglassOn) {
-      this.txtHG ??= this.add.text(W - 120, 20, '',
-                  { fontFamily: 'monospace', fontSize: 24 });
+      this.txtHG ??= this.add.text(W - 120, 20, '', { fontFamily: 'monospace', fontSize: 24 });
       this.txtHG.setText(Math.ceil((this.tHourglassEnd - this.time.now) / 1000));
-    } else if (this.txtHG) { this.txtHG.destroy(); this.txtHG = null; }
+    } else if (this.txtHG) {
+      this.txtHG.destroy();
+      this.txtHG = null;
+    }
   }
 
   /* ---------- HELPERS ---------- */
-  fire() {
+  fire () {
     const b = this.bullets.create(this.player.x, this.player.y, 'bullet')
-      .setRotation(this.player.rotation).setScale(0.6);
-    this.physics.velocityFromRotation(forward(this.player.rotation),
-                                      BULLET_SPEED, b.body.velocity);
+      .setRotation(this.player.rotation)
+      .setScale(0.6);
+
+    this.physics.velocityFromRotation(forward(this.player.rotation), BULLET_SPEED, b.body.velocity);
   }
 
-  spawnEnemy() {
-    const edge = Phaser.Math.Between(0, 3);      // 0=top 1=bottom 2=left 3=right
+  spawnEnemy () {
+    const edge = Phaser.Math.Between(0, 3);        // 0:top 1:bottom 2:left 3:right
     const x = edge === 2 ? 0 : edge === 3 ? W : Phaser.Math.Between(0, W);
     const y = edge === 0 ? 0 : edge === 1 ? H : Phaser.Math.Between(0, H);
-    const e = this.enemies.create(x, y, 'enemy').setScale(0.9);
 
+    const e = this.enemies.create(x, y, 'enemy').setScale(0.9);
     e.body.setCircle(20, e.width / 2 - 20, e.height / 2 - 20);
 
-    this.physics.moveToObject(e, this.player,
-      this.hourglassOn ? ENEMY_SLOW : ENEMY_SPEED);
+    /* give it an initial velocity and correct rotation */
+    this.physics.moveToObject(e, this.player, this.hourglassOn ? ENEMY_SLOW : ENEMY_SPEED);
+    const ang = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
+    e.setRotation(ang + Math.PI / 2);
   }
 
-  spawnHourglass() {
+  spawnHourglass () {
     this.hourglasses.create(
       Phaser.Math.Between(50, W - 50),
       Phaser.Math.Between(50, H - 50),
-      'hourglass').setScale(0.8);
+      'hourglass'
+    ).setScale(0.8);
   }
 
-  hitEnemy(bullet, enemy) {
-    bullet.destroy(); enemy.destroy();
-    this.score++; this.txtScore.setText(`Enemies killed: ${this.score}`);
+  hitEnemy (bullet, enemy) {
+    bullet.destroy();
+    enemy.destroy();
+    this.score += 1;
+    this.txtScore.setText(`Enemies killed: ${this.score}`);
   }
 
-  getHourglass(_, hg) {
+  getHourglass (_player, hg) {
     hg.destroy();
     this.hourglassOn   = true;
     this.tHourglassEnd = this.time.now + HOURGLASS_TIME;
   }
 
-  gameOver() {
+  /* ---------- GAME‑OVER ---------- */
+  gameOver () {
+    if (this.isOver) return;         // defend against multiple calls
     this.isOver = true;
+
+    /* freeze physics world so nothing keeps drifting */
+    this.physics.pause();
+
+    /* cancel timed events so no new spawns appear */
+    this.enemyEvent.remove();
+    this.hgEvent.remove();
+
+    /* UI feedback */
     this.player.setTint(0xff0000).setAngularVelocity(0);
-    this.enemies.setVelocity(0); this.bullets.setVelocity(0);
     this.panelGO.setVisible(true);
     this.txtGO.setText(`Score: ${this.score} — click to restart`).setVisible(true);
   }

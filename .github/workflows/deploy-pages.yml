@@ -6,7 +6,6 @@ on:
   push:
     branches: [ "main" ]
 
-# The new Pages actions require these top-level permissions
 permissions:
   contents: read        # to checkout the code
   pages: write          # to push to gh-pages

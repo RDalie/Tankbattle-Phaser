@@ -21,16 +21,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Configure Pages (sets up environment variables, etc.)
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # 3) Upload the folder that contains index.html
-      #    Change path: if your site lives somewhere else
+   
       - name: Upload static site
         uses: actions/upload-pages-artifact@v2
         with:
-          path: ./docs       # <── put ./  if index.html is at repo root
+          path: ./docs       
 
       # 4) Deploy!
       - name: Deploy to GitHub Pages

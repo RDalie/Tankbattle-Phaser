@@ -5,29 +5,51 @@ on:
   push:
     branches: [ "main" ]
 
+# minimal permissions required by GitHub Pages
 permissions:
-  contents: read        # to checkout the code
-  pages: write          # to push to gh-pages
-  id-token: write       # to authenticate the deployment
+  contents: read        # checkout the repo
+  pages: write          # upload the artifact & publish
+  id-token: write       # authentication for deploy-pages
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false   # prevents race conditions on rapid pushes
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Check out your repo
+      # 1️⃣  Check out repository
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2️⃣  Set up Node (caches npm automatically)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 3️⃣  Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # 4️⃣  Build the site (creates ./dist by default)
+      - name: Build
+        run: npm run build          # or yarn build / pnpm build
+
+      # 5️⃣  Configure GitHub Pages
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-   
+      # 6️⃣  Upload the build output as an artifact
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs       
+          path: ./dist             # ⬅️ change if your build output differs
 
-      # 4) Deploy!
+      # 7️⃣  Deploy!
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4

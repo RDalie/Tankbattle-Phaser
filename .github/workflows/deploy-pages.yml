@@ -1,0 +1,26 @@
+# File: .github/workflows/deploy-pages.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write         
+      id-token: write      
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Upload Pages folder
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ./docs
+
+      # STEP 2: Deploy the artifact to GitHub Pages
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
